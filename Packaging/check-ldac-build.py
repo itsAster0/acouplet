@@ -22,6 +22,7 @@ else:
         Path(args[args.index('-o') + 1]).write_text('fixture executable')
     else:
         assert name == 'codesign' and Path(args[-1]).exists(), args
+        if '--display' in args: print('TeamIdentifier=ABCDEFGHIJ', file=sys.stderr)
 '''
 
 with tempfile.TemporaryDirectory(prefix='acouplet-ldac-build-check-') as directory:
@@ -70,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='acouplet-ldac-build-check-') as directo
         assert (driver / 'Contents/Resources' / name).read_bytes() == (packaging.parent / 'Helpers/LDAC/VirtualOutput/Resources' / name).read_bytes()
     commands = [json.loads(line) for line in log.read_text().splitlines()]
     compiles = [command for command in commands if command[0] == 'clang']
-    signs = [command for command in commands if command[0] == 'codesign']
+    signs = [command for command in commands if command[0] == 'codesign' and '--display' not in command]
     assert len(compiles) == len(signs) == 6
     logger = compiles.pop(0)
     logger_sign = signs.pop(0)
@@ -96,6 +97,7 @@ with tempfile.TemporaryDirectory(prefix='acouplet-ldac-build-check-') as directo
     assert '-bundle' in driver_compile and '-std=gnu11' in driver_compile and '-Werror' in driver_compile
     assert 'Security' in [driver_compile[i + 1] for i, arg in enumerate(driver_compile) if arg == '-framework']
     assert any(arg.endswith('/VirtualOutput/AcoupletVirtualOutput.c') for arg in driver_compile)
+    assert '-DACOUPLET_TEAM_ID="ABCDEFGHIJ"' in driver_compile
     assert Path(signs[-1][-1]) == driver
     assert '--timestamp=none' in signs[-1]
     for command in signs:
@@ -105,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='acouplet-ldac-build-check-') as directo
         assert (app / 'Resources' / ('LDAC-' + notice + '.txt')).read_bytes() == (packaging.parent / 'Vendor/libldac' / notice).read_bytes()
     subprocess.run(['/bin/sh', str(script)], env={**environment, 'EXPANDED_CODE_SIGN_IDENTITY_NAME': 'Developer ID Application: Fixture (ABCDEFGHIJ)'}, check=True)
     commands = [json.loads(line) for line in log.read_text().splitlines()]
-    signs = [command for command in commands if command[0] == 'codesign']
+    signs = [command for command in commands if command[0] == 'codesign' and '--display' not in command]
     assert '--timestamp' in signs[-1] and '--timestamp=none' not in signs[-1]
     previous_log = log.read_bytes()
     for exclusion in ({'ACOUPLET_PUBLIC_APIS_ONLY': 'YES'}, {'CONFIGURATION': 'AppStore'}):

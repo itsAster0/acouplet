@@ -70,7 +70,18 @@ mkdir -p "$ldac_driver/Contents/MacOS" "$ldac_driver/Contents/Resources"
 /bin/cp "$ldac_source/VirtualOutput/NullAudio.c" "$ldac_driver/Contents/Resources/NullAudio.c"
 /bin/cp "$ldac_source/VirtualOutput/LICENSE.txt" "$ldac_driver/Contents/Resources/LICENSE.txt"
 /bin/cp "$ldac_source/VirtualOutput/Resources/Headphones.png" "$ldac_source/VirtualOutput/Resources/Earbuds.png" "$ldac_source/VirtualOutput/Resources/Speaker.png" "$ldac_driver/Contents/Resources/"
+# The driver only accepts the app signed by the same team as this build. Read the
+# team from a helper signed above; ad-hoc builds have none and authorize no client.
+ldac_team=""
+if [ "${CODE_SIGNING_ALLOWED:-NO}" != NO ]; then
+    ldac_team="$(/usr/bin/codesign --display --verbose=2 "$ldac_helpers/LDACLogObserver" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')"
+    case "$ldac_team" in
+        [A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]) ;;
+        *) ldac_team="" ;;
+    esac
+fi
 "$ldac_clang" $ldac_arch_flags -isysroot "$ldac_sdk" "-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET:-15.4}" -std=gnu11 -O2 -fblocks -Werror -bundle \
+    "-DACOUPLET_TEAM_ID=\"$ldac_team\"" \
     -framework CoreAudio -framework CoreFoundation -framework Security "$ldac_source/VirtualOutput/AcoupletVirtualOutput.c" \
     -o "$ldac_driver/Contents/MacOS/AcoupletVirtualOutput"
 if [ "${CODE_SIGNING_ALLOWED:-NO}" != NO ]; then

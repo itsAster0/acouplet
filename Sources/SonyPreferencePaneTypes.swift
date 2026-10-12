@@ -172,7 +172,22 @@ enum SonyPreferencePaneWire {
     static let maximumFrameSize = 65_536
     static let socketName = "sony-pane.sock"
     static let hostRequirement = "anchor apple and (identifier \"com.apple.systempreferences.legacyLoader.arm64\" or identifier \"com.apple.systempreferences.legacyLoader.x86_64\")"
-    static let appRequirement = "anchor apple generic and identifier \"dev.baglayan.Acouplet\" and certificate leaf[subject.OU] = \"5743Y47SC7\""
+    /// Requires the app to share this bundle's signing team; nil when this bundle has none.
+    static let appRequirement: String? = signingTeam(of: Bundle(for: BundleMarker.self).bundleURL).map {
+        "anchor apple generic and identifier \"dev.baglayan.Acouplet\" and certificate leaf[subject.OU] = \"\($0)\""
+    }
+
+    private final class BundleMarker {}
+
+    private static func signingTeam(of url: URL) -> String? {
+        var code: SecStaticCode?
+        var information: CFDictionary?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
+              SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
+              let team = (information as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String,
+              team.range(of: "^[A-Z0-9]{10}$", options: .regularExpression) != nil else { return nil }
+        return team
+    }
 
     static func failure(_ message: String) -> NSError {
         NSError(domain: "SonyPreferencePane", code: 1, userInfo: [NSLocalizedDescriptionKey: message])

@@ -166,7 +166,10 @@ final class SonyPreferencePaneClient: ObservableObject {
             let reply = try await Task.detached {
                 let fd = try SonyPreferencePaneWire.connect(path: path)
                 defer { close(fd) }
-                try SonyPreferencePaneWire.authenticate(fd, requirement: SonyPreferencePaneWire.appRequirement)
+                guard let requirement = SonyPreferencePaneWire.appRequirement else {
+                    throw SonyPreferencePaneWire.failure("This preference pane has no signing team to verify Acouplet.")
+                }
+                try SonyPreferencePaneWire.authenticate(fd, requirement: requirement)
                 try SonyPreferencePaneWire.send(request, to: fd)
                 let reply = try SonyPreferencePaneWire.receive(SonyPreferencePaneReply.self, from: fd)
                 guard reply.version == SonyPreferencePaneWire.version, reply.id == request.id else {

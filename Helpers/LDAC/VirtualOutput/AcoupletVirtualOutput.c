@@ -81,6 +81,12 @@ static void AcoupletScheduleLeaseTimer(void);
 static Boolean (*gClientCheckAuthentication)(pid_t);
 #endif
 
+// The signing team of the app allowed to control the driver, set by build-ldac.sh
+// from the identity that signed this build. Unsigned builds authorize no client.
+#ifndef ACOUPLET_TEAM_ID
+#define ACOUPLET_TEAM_ID ""
+#endif
+
 static Boolean AcoupletClientAuthorized(pid_t client) {
     if (client <= 0) return false;
 #ifdef ACOUPLET_PRIORITY_CHECK
@@ -89,8 +95,13 @@ static Boolean AcoupletClientAuthorized(pid_t client) {
     static dispatch_once_t once;
     static SecRequirementRef requirement;
     dispatch_once(&once, ^{
-        SecRequirementCreateWithString(CFSTR("anchor apple generic and identifier \"dev.baglayan.Acouplet\" and certificate leaf[subject.OU] = \"5743Y47SC7\""),
-            kSecCSDefaultFlags, &requirement);
+        // An empty team matches no Apple-issued certificate, so unsigned builds fail closed.
+        CFStringRef text = CFStringCreateWithFormat(NULL, NULL,
+            CFSTR("anchor apple generic and identifier \"dev.baglayan.Acouplet\" and certificate leaf[subject.OU] = \"%s\""),
+            ACOUPLET_TEAM_ID);
+        if (!text) return;
+        SecRequirementCreateWithString(text, kSecCSDefaultFlags, &requirement);
+        CFRelease(text);
     });
     if (!requirement) return false;
     CFNumberRef pid = CFNumberCreate(NULL, kCFNumberIntType, &client);
